@@ -8,9 +8,9 @@
  *
  * Usage: npx tsx scripts/prune-utilities.ts [--dry-run]
  */
-import "./env";
-import { getDb } from "../src/lib/db/client";
-import { invalidateCatalogCache, listTechnologies, recordChange } from "../src/lib/db/repo";
+import "../env";
+import { getDb } from "../../src/lib/db/client";
+import { invalidateCatalogCache, listTechnologies, recordChange } from "../../src/lib/db/repo";
 
 /** slug -> why it is not an architectural choice. */
 const PRUNE: Record<string, string> = {

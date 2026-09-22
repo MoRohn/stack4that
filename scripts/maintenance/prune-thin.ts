@@ -9,11 +9,11 @@
  *
  * Usage: npx tsx scripts/prune-thin.ts [--dry-run] [--limit N]
  */
-import "./env";
-import { getDb } from "../src/lib/db/client";
-import { invalidateCatalogCache, listTechnologies, recordChange } from "../src/lib/db/repo";
-import { reviewCatalogEntries, type CatalogReviewInput } from "../src/lib/pipeline/classify";
-import type { Technology } from "../src/lib/types";
+import "../env";
+import { getDb } from "../../src/lib/db/client";
+import { invalidateCatalogCache, listTechnologies, recordChange } from "../../src/lib/db/repo";
+import { reviewCatalogEntries, type CatalogReviewInput } from "../../src/lib/pipeline/classify";
+import type { Technology } from "../../src/lib/types";
 
 const CURATED = "curated-seed";
 /**

@@ -8,9 +8,9 @@
  * Only technologies discovered by the pipeline are touched. Curated seed entries have no
  * discovery event and are left alone. Usage: npx tsx scripts/backfill-provenance.ts [--dry-run]
  */
-import "./env";
-import { getDb } from "../src/lib/db/client";
-import type { Technology } from "../src/lib/types";
+import "../env";
+import { getDb } from "../../src/lib/db/client";
+import type { Technology } from "../../src/lib/types";
 
 const DISCOVERY_SOURCES = new Set(["yc-oss", "cncf", "github", "npm", "wikidata", "apache", "dockerhub", "pypi", "crates"]);
 

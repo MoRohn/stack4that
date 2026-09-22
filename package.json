@@ -25,14 +25,12 @@
   "dependencies": {
     "@libsql/client": "^0.18.0",
     "@typesafe-ai/sdk": "^0.6.0",
-    "drizzle-orm": "^0.45.3",
     "matter-js": "^0.20.0",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "simple-icons": "^16.32.0",
-    "yaml": "^2.9.1",
-    "zod": "^4.6.5"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -41,7 +39,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "axe-core": "^4.13.0",
-    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "puppeteer-core": "^25.11.0",
@@ -52,5 +49,28 @@
   },
   "bin": {
     "stack4that": "bin/stack4that.mjs"
+  },
+  "description": "Describe what you are building. Watch the stack assemble. An AI stack architect over a continuously refreshed technology knowledge base.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MoRohn/stack4that.git"
+  },
+  "homepage": "https://github.com/MoRohn/stack4that#readme",
+  "bugs": {
+    "url": "https://github.com/MoRohn/stack4that/issues"
+  },
+  "keywords": [
+    "ai",
+    "architecture",
+    "technology-stack",
+    "typesafe",
+    "nextjs",
+    "matter-js",
+    "knowledge-base",
+    "developer-tools"
+  ],
+  "engines": {
+    "node": ">=20"
   }
 }

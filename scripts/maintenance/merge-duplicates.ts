@@ -7,10 +7,10 @@
  *
  * Usage: npx tsx scripts/merge-duplicates.ts [--dry-run]
  */
-import "./env";
-import { getDb } from "../src/lib/db/client";
-import { invalidateCatalogCache, listTechnologies, recordChange } from "../src/lib/db/repo";
-import type { Technology } from "../src/lib/types";
+import "../env";
+import { getDb } from "../../src/lib/db/client";
+import { invalidateCatalogCache, listTechnologies, recordChange } from "../../src/lib/db/repo";
+import type { Technology } from "../../src/lib/types";
 
 /** keep -> retire */
 const MERGES: Array<[string, string]> = [
