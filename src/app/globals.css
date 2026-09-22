@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+:root {
+  --bg: #08080a;
+  --fg: #ececec;
+  --muted: #8a8a93;
+  --line: rgba(255, 255, 255, 0.08);
+  --panel: rgba(14, 14, 17, 0.92);
+  --accent: #ffffff;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.s4t-fade-in {
+  animation: s4t-fade 420ms ease-out both;
+}
+@keyframes s4t-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.s4t-panel {
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.s4t-input {
+  background: rgba(14, 14, 17, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--fg);
+  outline: none;
+  transition: border-color 200ms, background 200ms, box-shadow 200ms;
+}
+.s4t-input:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(18, 18, 22, 0.85);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.04);
+}
+.s4t-input::placeholder {
+  color: #6b6b74;
+}
+
+.s4t-pulse {
+  animation: s4t-pulse 1.6s ease-in-out infinite;
+}
+@keyframes s4t-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.s4t-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.s4t-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.s4t-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.s4t-bar > span {
+  display: block;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s4t-fade-in,
+  .s4t-pulse {
+    animation: none;
+  }
+}
+
+pre.s4t-code {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  overflow: auto;
+  white-space: pre;
+}
