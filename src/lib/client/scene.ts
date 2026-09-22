@@ -63,6 +63,12 @@ interface Flight {
 /** Physics engine step length in ms (Matter's default runner delta). */
 const STEP_MS = 1000 / 60;
 
+/** Holding space this long charges the blast to full power. */
+const CHARGE_MS = 1500;
+/** Upward speed of a blast, from a tap to a full charge (px per physics step). */
+const BLAST_MIN = 13;
+const BLAST_MAX = 32;
+
 export const GROUP_ORDER: ArchitectureGroup[] = ["EXPERIENCE", "API", "DATA", "AI", "INGESTION", "INFRASTRUCTURE"];
 const GROUP_COLORS: Record<ArchitectureGroup, string> = {
   EXPERIENCE: "#8ab4ff",
@@ -125,6 +131,15 @@ export class UniverseScene {
   private labels: Array<{ group: ArchitectureGroup; y: number; x: number }> = [];
   private highlightQuery = "";
   private topInset = 180;
+  /** Window position on the desktop, sampled each frame to give the pile inertia. */
+  private screen: { x: number; y: number } | null = null;
+  private slosh = { x: 0, y: 0 };
+  private lastDelta = { x: 0, y: 0 };
+  private tiltX = 0;
+  /** Space-bar blast: charging while held, released as an upward impulse. */
+  private charge: { active: boolean; start: number } = { active: false, start: 0 };
+  private shock: { t0: number; level: number; x: number; y: number } | null = null;
+  private onTilt?: (e: DeviceOrientationEvent) => void;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -137,6 +152,14 @@ export class UniverseScene {
     if (options.reducedMotion) this.engine.gravity.y = 0;
     this.resize();
     this.bindPointer();
+    // Phones and tablets tilt the box itself; harmless where the sensor never fires.
+    if (!options.reducedMotion && typeof window !== "undefined" && "DeviceOrientationEvent" in window) {
+      this.onTilt = (e: DeviceOrientationEvent) => {
+        if (e.gamma == null) return;
+        this.tiltX = Math.max(-0.8, Math.min(0.8, e.gamma / 45));
+      };
+      window.addEventListener("deviceorientation", this.onTilt);
+    }
     Events.on(this.engine, "afterUpdate", () => this.stepFlights(performance.now()));
     Runner.run(this.runner, this.engine);
     const loop = () => {
@@ -230,6 +253,136 @@ export class UniverseScene {
       Body.setAngularVelocity(b, (Math.random() - 0.5) * 0.5);
     }
     this.rescalePile();
+  }
+
+
+  // ---------------------------------------------------------------------
+  // Window motion and the space-bar blast
+  // ---------------------------------------------------------------------
+
+  /**
+   * The pile has inertia: when the window is dragged across the desktop, the blocks lag
+   * behind the box that holds them, slide toward the trailing wall and settle again.
+   * Sampled from the window's screen position each frame, so it needs no permissions.
+   */
+  private trackWindowMotion() {
+    if (this.options.reducedMotion) return;
+    const x = window.screenX;
+    const y = window.screenY;
+    if (!this.screen) {
+      this.screen = { x, y };
+      return;
+    }
+    const dx = x - this.screen.x;
+    const dy = y - this.screen.y;
+    this.screen = { x, y };
+    this.applyWindowMotion(dx, dy);
+  }
+
+  /**
+   * Give the pile the inertia of a box that just moved by (dx, dy) pixels on the desktop.
+   * Public so the behaviour can be exercised without moving a real window.
+   */
+  applyWindowMotion(dx: number, dy: number) {
+    if (this.options.reducedMotion) return;
+    // Inertia follows acceleration, not speed: starting and stopping a drag throws the pile,
+    // while a window travelling at a steady speed carries it along without piling up force.
+    const ax = dx - this.lastDelta.x;
+    const ay = dy - this.lastDelta.y;
+    this.lastDelta = { x: dx, y: dy };
+    // Decay last frame's slosh so gravity returns to level once the window stops.
+    this.slosh.x *= 0.82;
+    this.slosh.y *= 0.82;
+    // A jump this large is a snap or a monitor change, not a drag: ignore it.
+    if ((ax || ay) && Math.abs(ax) <= 260 && Math.abs(ay) <= 260) {
+      const kick = (a: number) => Math.max(-16, Math.min(16, -a * 0.5));
+      const vx = kick(ax);
+      const vy = kick(ay);
+      this.slosh.x = Math.max(-0.45, Math.min(0.45, this.slosh.x - ax * 0.018));
+      this.slosh.y = Math.max(-0.25, Math.min(0.25, this.slosh.y - ay * 0.008));
+      for (const b of this.pile) {
+        if (b.isStatic) continue;
+        this.wake(b);
+        Body.setVelocity(b, { x: b.velocity.x + vx, y: b.velocity.y + vy * 0.6 });
+        Body.setAngularVelocity(b, b.angularVelocity + vx * 0.004);
+      }
+    }
+    this.engine.gravity.x = this.tiltX + this.slosh.x;
+    this.engine.gravity.y = 1.1 + this.slosh.y;
+  }
+
+  /** Space held down: the pile crouches and glows while the blast charges. */
+  startCharge() {
+    if (this.charge.active) return;
+    this.charge = { active: true, start: performance.now() };
+  }
+
+  /** Space released: everything on screen is thrown upward, then falls freely. */
+  releaseCharge() {
+    if (!this.charge.active) return;
+    const level = this.chargeLevel();
+    this.charge.active = false;
+    this.blast(level);
+  }
+
+  cancelCharge() {
+    this.charge.active = false;
+  }
+
+  isCharging() {
+    return this.charge.active;
+  }
+
+  private chargeLevel() {
+    if (!this.charge.active) return 0;
+    return Math.min(1, (performance.now() - this.charge.start) / CHARGE_MS);
+  }
+
+  /**
+   * Throw the pile upward from a point under the middle of it. Power scales with how long
+   * space was held; blocks nearer the epicentre are thrown hardest, and nothing is caught
+   * or guided afterwards, so they tumble back down under normal gravity.
+   */
+  private blast(level: number) {
+    const now = performance.now();
+    const ex = this.width / 2;
+    const ey = this.height + 30;
+    this.shock = { t0: now, level, x: ex, y: ey };
+    // Reduced motion: the pile stays put, the shockwave alone acknowledges the press.
+    if (this.options.reducedMotion) return;
+    const power = BLAST_MIN + (BLAST_MAX - BLAST_MIN) * level;
+    const reach = Math.hypot(this.width / 2, this.height);
+    for (const b of this.pile) {
+      if (b.isStatic) continue;
+      this.wake(b);
+      const dx = b.position.x - ex;
+      const falloff = Math.max(0.4, 1 - Math.hypot(dx, b.position.y - ey) / reach);
+      Body.setVelocity(b, {
+        x: b.velocity.x + (dx / this.width) * power * 1.4 + (Math.random() - 0.5) * power * 0.3,
+        y: -power * falloff * (0.8 + Math.random() * 0.45),
+      });
+      Body.setAngularVelocity(b, (Math.random() - 0.5) * (0.1 + level * 0.5));
+    }
+    // Built blocks feel the shock but stay on their shelves: the row layout puts them back.
+    for (const b of this.stack.values()) {
+      if (b.isStatic || this.flights.has(b)) continue;
+      this.wake(b);
+      Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - 1.5 - level * 2.5 });
+    }
+  }
+
+  /** While charging, the pile trembles and packs down, so the release reads as a launch. */
+  private stepCharge() {
+    if (!this.charge.active || this.options.reducedMotion) return;
+    const level = this.chargeLevel();
+    for (const b of this.pile) {
+      if (b.isStatic) continue;
+      this.wake(b);
+      Body.applyForce(b, b.position, {
+        x: (Math.random() - 0.5) * 0.0016 * level * b.mass,
+        y: (0.0006 + Math.random() * 0.0012) * level * b.mass,
+      });
+    }
   }
 
   beginBuild(keepExisting: boolean) {
@@ -480,6 +633,18 @@ export class UniverseScene {
     return ys.length ? Math.min(...ys) : this.height;
   }
 
+  /** Average position of the pile, used by tests to observe how it responds. */
+  getPileCentroid(): { x: number; y: number } {
+    if (!this.pile.length) return { x: 0, y: 0 };
+    let x = 0;
+    let y = 0;
+    for (const b of this.pile) {
+      x += b.position.x;
+      y += b.position.y;
+    }
+    return { x: x / this.pile.length, y: y / this.pile.length };
+  }
+
   getPileCount(): number {
     return this.pile.length;
   }
@@ -521,6 +686,7 @@ export class UniverseScene {
 
   destroy() {
     this.destroyed = true;
+    if (this.onTilt) window.removeEventListener("deviceorientation", this.onTilt);
     cancelAnimationFrame(this.raf);
     Runner.stop(this.runner);
     Composite.clear(this.engine.world, false);
@@ -763,6 +929,8 @@ export class UniverseScene {
 
   private tick() {
     const now = performance.now();
+    this.trackWindowMotion();
+    this.stepCharge();
     this.spawnPending(now);
     if (this.mode !== "idle" && this.shelves.size && now % 600 < 17 && Math.abs(this.pileTop() - this.lastPileTop) > 24) this.layoutShelves();
     // Sleep far-fallen or escaped bodies back into bounds.
@@ -910,6 +1078,7 @@ export class UniverseScene {
     for (const b of this.pile) this.drawBlock(b, now, dimPile ? 0.42 : 1);
     for (const b of this.stack.values()) if (!this.flights.has(b)) this.drawBlock(b, now, 1);
     for (const [b, f] of this.flights) this.drawFlight(b, f, now);
+    this.drawBlastUi(now);
     // Hover tooltip
     if (this.hover?.meta) {
       const b = this.hover;
@@ -947,6 +1116,52 @@ export class UniverseScene {
       ctx.fillText(name, x + 8, y + h / 2);
       ctx.restore();
     }
+  }
+
+
+  /** Charge meter while space is held, and the ring that marks a release. */
+  private drawBlastUi(now: number) {
+    const ctx = this.ctx;
+    if (this.shock) {
+      const t = (now - this.shock.t0) / 620;
+      if (t >= 1) this.shock = null;
+      else {
+        const r = (0.25 + t * 0.9) * this.width * (0.5 + this.shock.level * 0.5);
+        ctx.save();
+        ctx.globalAlpha = (1 - t) * 0.5;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2 - t;
+        ctx.beginPath();
+        ctx.arc(this.shock.x, this.shock.y, r, Math.PI, 2 * Math.PI);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+    if (!this.charge.active) return;
+    const level = this.chargeLevel();
+    const w = 168;
+    const x = (this.width - w) / 2;
+    // Above the pile, never inside it: the meter has to stay readable while blocks pack up.
+    const y = Math.max(this.topInset + 40, Math.min(this.height - 40, this.getVisiblePileTop() - 26));
+    ctx.save();
+    // Plate behind the meter so it reads over whatever colour is underneath.
+    ctx.fillStyle = "rgba(8,8,10,0.72)";
+    this.roundRect(x - 14, y - 24, w + 28, 40, 12);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    this.roundRect(x, y, w, 4, 2);
+    ctx.fill();
+    ctx.fillStyle = level >= 1 ? "#ffffff" : "rgba(255,255,255,0.75)";
+    this.roundRect(x, y, Math.max(4, w * level), 4, 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = "#f2f2f2";
+    ctx.font = "500 10px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(level >= 1 ? "RELEASE TO LAUNCH" : "CHARGING", this.width / 2, y - 8);
+    ctx.textAlign = "left";
+    ctx.restore();
   }
 
   private drawBlock(b: MBody, now: number, alpha: number) {

@@ -17,7 +17,7 @@ setTimeout(() => {
 }, Number(process.env.E2E_TIMEOUT_MS ?? 600000)).unref();
 const INPUT = "input[aria-label='What are you building?']";
 
-type Scene = { getStackSlots(): string[]; getPileCount(): number; getBlockPosition(s: string): { x: number; y: number } | undefined };
+type Scene = { getStackSlots(): string[]; getPileCount(): number; getBlockPosition(s: string): { x: number; y: number } | undefined; getPileCentroid(): { x: number; y: number }; applyWindowMotion(dx: number, dy: number): void; isCharging(): boolean };
 const results: Array<{ name: string; ok: boolean; detail: string }> = [];
 const metrics: Record<string, number | string> = {};
 function check(name: string, ok: boolean, detail = "") {
@@ -231,6 +231,56 @@ async function main() {
     await shot("07-tech-record");
     await page.keyboard.press("Escape");
   } else check("clicking a pile block shows its knowledge-base record", false, "no known block found in pile");
+
+  // 8b. The pile answers the space bar and the window being dragged.
+  {
+    const rest = (await scene(page, (s) => s.getPileCentroid())) ?? { x: 0, y: 0 };
+    await page.keyboard.down("Space");
+    await sleep(400);
+    const charging = (await scene(page, (s) => s.isCharging())) ?? false;
+    await sleep(1300);
+    await page.keyboard.up("Space");
+    await sleep(300);
+    const launched = (await scene(page, (s) => s.getPileCentroid())) ?? rest;
+    const rise = Math.round(rest.y - launched.y);
+    check("holding space charges a blast", charging);
+    check("releasing space throws the pile upward", rise > 60, `${rise}px`);
+    const blastFps = await fps(page, 1200);
+    check("the blast stays smooth", blastFps >= 50, `${blastFps} fps`);
+    metrics.blastFps = blastFps;
+    await sleep(4500);
+    const settled = (await scene(page, (s) => s.getPileCentroid())) ?? launched;
+    check("the pile falls back and settles", Math.abs(settled.y - rest.y) < 80, `${Math.round(settled.y - rest.y)}px from rest`);
+
+    // Typing keeps the space bar as a space.
+    await page.click(INPUT, { count: 3 });
+    await page.type(INPUT, "ai news");
+    await page.keyboard.press("Space");
+    const typed = await page.$eval(INPUT, (el) => (el as HTMLInputElement).value);
+    check("space inside a request stays a space", typed === "ai news ", JSON.stringify(typed));
+    await page.click(INPUT, { count: 3 });
+    await page.keyboard.press("Backspace");
+
+    // Dragging the window sloshes the pile, and it comes back to rest.
+    const preDrag = (await scene(page, (s) => s.getPileCentroid())) ?? { x: 0, y: 0 };
+    let peak = 0;
+    for (let i = 0; i < 8; i++) {
+      await scene(page, (s) => s.applyWindowMotion(-45, 0));
+      const now = (await scene(page, (s) => s.getPileCentroid())) ?? preDrag;
+      peak = Math.max(peak, Math.abs(now.x - preDrag.x));
+      await sleep(16);
+    }
+    await scene(page, (s) => s.applyWindowMotion(0, 0));
+    for (let i = 0; i < 20; i++) {
+      const now = (await scene(page, (s) => s.getPileCentroid())) ?? preDrag;
+      peak = Math.max(peak, Math.abs(now.x - preDrag.x));
+      await sleep(16);
+    }
+    check("dragging the window makes the pile slosh", peak > 30, `${Math.round(peak)}px`);
+    await sleep(2500);
+    const afterDrag = (await scene(page, (s) => s.getPileCentroid())) ?? preDrag;
+    check("the pile settles again after the window stops", Math.abs(afterDrag.x - preDrag.x) < 220, `${Math.round(afterDrag.x - preDrag.x)}px`);
+  }
 
   // 9. Short requests are accepted, interpreted and built; a browser refresh keeps the stack.
   await page.click(INPUT, { count: 3 });

@@ -32,6 +32,7 @@ const sceneTech = (c: Pick<StackComponent, "technologyId" | "slug" | "name" | "c
 export function Stack4That({ initialArchitecture }: { initialArchitecture?: Architecture }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<UniverseScene | null>(null);
+  const [charging, setCharging] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
   const continuingRef = useRef(false);
   const replayed = useRef(false);
@@ -160,6 +161,45 @@ export function Stack4That({ initialArchitecture }: { initialArchitecture?: Arch
     if (state.phase === "error" && state.order.length === 0) sceneRef.current?.finishBuild([]);
   }, [state.phase, state.order.length]);
 
+  /**
+   * Space launches the pile: a tap tosses it, holding charges a bigger blast. A space typed
+   * into a request is still a space, and space on a focused control still activates it.
+   */
+  useEffect(() => {
+    const passThrough = (el: EventTarget | null) => {
+      const n = el as HTMLElement | null;
+      if (!n?.tagName) return false;
+      if (n.tagName === "BUTTON" || n.tagName === "A" || n.tagName === "SELECT" || n.tagName === "SUMMARY") return true;
+      if (n.isContentEditable) return true;
+      if (n.tagName === "INPUT" || n.tagName === "TEXTAREA") return Boolean((n as HTMLInputElement).value?.trim());
+      return false;
+    };
+    const onDown = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat || e.metaKey || e.ctrlKey || e.altKey || passThrough(e.target)) return;
+      e.preventDefault();
+      sceneRef.current?.startCharge();
+      setCharging(true);
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || !sceneRef.current?.isCharging()) return;
+      e.preventDefault();
+      sceneRef.current.releaseCharge();
+      setCharging(false);
+    };
+    const cancel = () => {
+      sceneRef.current?.cancelCharge();
+      setCharging(false);
+    };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", cancel);
+    return () => {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", cancel);
+    };
+  }, []);
+
   // Escape closes the side panel.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -234,6 +274,11 @@ export function Stack4That({ initialArchitecture }: { initialArchitecture?: Arch
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-10 h-28 bg-gradient-to-b from-[var(--bg)] via-[var(--bg)]/70 to-transparent" />
 
       <AppHeader floating active="build" technologies={catalogInfo.count} updatedAt={catalogInfo.updatedAt} onHome={newThread} />
+
+      {/* Physics hint: the pile answers the space bar, and drifts when the window is moved. */}
+      <p aria-live="polite" className={`pointer-events-none absolute bottom-4 left-5 z-10 hidden rounded-full border border-white/10 bg-black/70 px-2.5 py-1 text-[11px] tracking-wide backdrop-blur-sm transition-colors md:block ${charging ? "text-white/85" : "text-white/60"}`}>
+        {charging ? "Hold to charge · release to launch" : "Press space to launch the pile · hold to charge"}
+      </p>
 
       {/* Command area: centered when idle, docked under the header while building */}
       <div ref={headerRef} className={`pointer-events-none absolute inset-x-0 z-20 flex flex-col items-center transition-all duration-700 ease-out ${docked ? "top-[68px]" : "top-[24vh]"}`}>
