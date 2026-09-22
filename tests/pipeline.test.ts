@@ -5,7 +5,7 @@ import { canonicalUrl, domainOf } from "@/lib/pipeline/http";
 import { parseRepo } from "@/lib/pipeline/sources/github";
 import { developerRelevant, mapYcTags } from "@/lib/pipeline/sources/yc";
 import { mapCncfCategory } from "@/lib/pipeline/sources/cncf";
-import { productName } from "@/lib/pipeline";
+import { dedupeCandidates, productName } from "@/lib/pipeline";
 import { encodeSSE } from "@/lib/architect/events";
 
 describe("pipeline helpers", () => {
@@ -128,5 +128,66 @@ describe("name variants do not over-merge", () => {
     expect(overlap("azure-sql", "Microsoft Azure")).toBe(false);
     expect(overlap("Google Cloud SQL", "Google Cloud Platform")).toBe(false);
     expect(overlap("mongo", "MongoDB")).toBe(true);
+  });
+});
+
+describe("one product discovered twice in a run", () => {
+  it("keeps a single candidate when two sources share a slug but not a repository", () => {
+    const known = { bySlug: new Set<string>(), byDomain: new Set<string>(), byRepo: new Set<string>(), byName: new Set<string>(), seenBefore: new Set<string>() };
+    const raw = [
+      { name: "Tower", website: "https://crates.io/crates/tower", repo: "https://github.com/tower-rs/tower", sourceType: "crates" as const, sourceUrl: "https://crates.io", key: "tower", hints: [], categories: [], payload: {}, description: "" },
+      { name: "tower", website: "https://tower.rs", repo: "https://github.com/tower-rs/tower-http", sourceType: "github" as const, sourceUrl: "https://github.com", key: "tower-http", hints: [], categories: [], payload: {}, description: "" },
+      { name: "Caddy", website: "https://caddyserver.com", repo: "https://github.com/caddyserver/caddy", sourceType: "github" as const, sourceUrl: "https://github.com", key: "caddy", hints: [], categories: [], payload: {}, description: "" },
+    ];
+    const { fresh, dupes } = dedupeCandidates(raw, known);
+    expect(fresh.map((c) => c.name)).toEqual(["Tower", "Caddy"]);
+    expect(dupes).toBe(1);
+  });
+
+
+  it("drops a second candidate that names a product this batch already kept", () => {
+    const known = { bySlug: new Set<string>(), byDomain: new Set<string>(), byRepo: new Set<string>(), byName: new Set<string>(), seenBefore: new Set<string>() };
+    const raw = [
+      { name: "couchdb", website: "https://hub.docker.com/_/couchdb", repo: undefined, sourceType: "dockerhub" as const, sourceUrl: "https://hub.docker.com", key: "couchdb", hints: [], categories: [], payload: {}, description: "" },
+      { name: "Apache CouchDB", website: "https://couchdb.apache.org", repo: "https://github.com/apache/couchdb", sourceType: "apache" as const, sourceUrl: "https://projects.apache.org", key: "couchdb-apache", hints: [], categories: [], payload: {}, description: "" },
+    ];
+    const { fresh, dupes } = dedupeCandidates(raw, known);
+    expect(fresh.map((c) => c.name)).toEqual(["couchdb"]);
+    expect(dupes).toBe(1);
+  });
+
+  it("never adopts a code-host file title as a product name", () => {
+    expect(productName("claude-context", "claude-context/docs at master", "github")).toBe("Claude Context");
+    expect(productName("preact", "Preact | Preact", "github")).toBe("Preact");
+  });
+
+  it("upserts one row and one change when two candidates resolve to the same technology", async () => {
+    await ensureSeeded();
+    const base = {
+      ...(await listTechnologies())[0],
+      id: "tech_dup_probe",
+      slug: "dup-probe",
+      name: "Dup Probe",
+      aliases: ["probe"],
+      confidence: 0.6,
+      sourceRecords: [{ id: "src_dup_a", technologyId: "tech_dup_probe", sourceType: "crates" as const, sourceUrl: "https://crates.io", retrievedAt: new Date().toISOString(), payload: {} }],
+    };
+    const twin = {
+      ...base,
+      name: "Dup Probe (registry)",
+      aliases: ["dup probe"],
+      confidence: 0.8,
+      sourceRecords: [{ id: "src_dup_b", technologyId: "tech_dup_probe", sourceType: "github" as const, sourceUrl: "https://github.com", retrievedAt: new Date().toISOString(), payload: {} }],
+    };
+    const res = await upsertTechnologies([base, twin], { source: "test", recordChanges: true });
+    expect(res.inserted).toBe(1);
+    const stored = (await listTechnologies({ includeInactive: true })).filter((t) => t.id === "tech_dup_probe");
+    expect(stored).toHaveLength(1);
+    // The more confident record wins, and neither name nor provenance is lost.
+    expect(stored[0].name).toBe("Dup Probe (registry)");
+    expect(stored[0].aliases).toContain("Dup Probe");
+    expect(stored[0].sourceRecords.map((s) => s.id).sort()).toEqual(["src_dup_a", "src_dup_b"]);
+    const changes = await listChanges({ technologyId: "tech_dup_probe" });
+    expect(changes.filter((c) => c.changeKind === "new-technology")).toHaveLength(1);
   });
 });

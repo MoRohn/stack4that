@@ -186,6 +186,32 @@ export interface UpsertOptions {
   confidence?: number;
 }
 
+/** Merge two records of the same technology found under different names in one batch. */
+function mergeDuplicate(a: Technology, b: Technology): Technology {
+  const better = (b.confidence ?? 0) > (a.confidence ?? 0) ? b : a;
+  const other = better === a ? b : a;
+  const uniq = <T>(xs: T[], key: (x: T) => string) => [...new Map(xs.map((x) => [key(x), x])).values()];
+  return {
+    ...better,
+    aliases: [...new Set([...better.aliases, ...other.aliases, other.name].filter((n) => n && n !== better.name))],
+    categories: [...new Set([...better.categories, ...other.categories])],
+    capabilities: [...new Set([...better.capabilities, ...other.capabilities])],
+    tags: [...new Set([...better.tags, ...other.tags])],
+    sourceRecords: uniq([...better.sourceRecords, ...other.sourceRecords], (r) => r.id),
+    evidence: uniq([...better.evidence, ...other.evidence], (e) => e.id),
+  };
+}
+
+/**
+ * Change ids are readable (technology + field) but must stay unique: a single run can
+ * record the same field twice within one millisecond, so a process counter is appended.
+ */
+let changeSeq = 0;
+function changeId(technologyId: string, field: string) {
+  changeSeq += 1;
+  return `chg_${technologyId}_${field}_${Date.now().toString(36)}_${changeSeq.toString(36)}`;
+}
+
 /**
  * Upsert technologies, diffing tracked fields against the stored version and
  * appending TechnologyChange rows. Never deletes.
@@ -200,8 +226,18 @@ export async function upsertTechnologies(techs: Technology[], opts: UpsertOption
   const existing = new Map<string, Technology>();
   for (const r of existingRes.rows) existing.set(String(r.id), JSON.parse(String(r.data)) as Technology);
 
+  // Two discovery candidates can resolve to the same technology id (the same product found
+  // under two names). Upserting both would write the row twice and record the same "new"
+  // change twice, so they are merged here, keeping every alias and source record.
+  const byId = new Map<string, Technology>();
+  for (const t of techs) {
+    const seen = byId.get(t.id);
+    byId.set(t.id, seen ? mergeDuplicate(seen, t) : t);
+  }
+  const unique = [...byId.values()];
+
   const statements: Array<{ sql: string; args: (string | number | null)[] }> = [];
-  for (const tech of techs) {
+  for (const tech of unique) {
     const prev = existing.get(tech.id);
     if (prev) {
       updated += 1;
@@ -211,7 +247,7 @@ export async function upsertTechnologies(techs: Technology[], opts: UpsertOption
           const b = JSON.stringify(tech[field] ?? null);
           if (a !== b) {
             changes.push({
-              id: `chg_${tech.id}_${field}_${Date.now()}_${changes.length}`,
+              id: changeId(tech.id, field),
               technologyId: tech.id,
               field,
               previousValue: prev[field] == null ? null : a,
@@ -228,7 +264,7 @@ export async function upsertTechnologies(techs: Technology[], opts: UpsertOption
       inserted += 1;
       if (opts.recordChanges !== false) {
         changes.push({
-          id: `chg_${tech.id}_new_${Date.now()}`,
+          id: changeId(tech.id, "new"),
           technologyId: tech.id,
           field: "*",
           previousValue: null,
@@ -254,13 +290,21 @@ export async function upsertTechnologies(techs: Technology[], opts: UpsertOption
   }
   for (const c of changes) {
     statements.push({
-      sql: `INSERT INTO technology_changes (id, technology_id, field, previous_value, new_value, detected_at, source, confidence, change_kind) VALUES (?,?,?,?,?,?,?,?,?)`,
+      sql: `INSERT INTO technology_changes (id, technology_id, field, previous_value, new_value, detected_at, source, confidence, change_kind) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
       args: [c.id, c.technologyId, c.field, c.previousValue, c.newValue, c.detectedAt, c.source, c.confidence, c.changeKind],
     });
   }
-  // libsql batch in chunks to stay under statement limits
-  for (let i = 0; i < statements.length; i += 200) {
-    await db.batch(statements.slice(i, i + 200), "write");
+  // One transaction across all chunks: a technology and the change records that explain it
+  // must land together, so a failure half way through cannot leave rows without provenance.
+  const tx = await db.transaction("write");
+  try {
+    for (let i = 0; i < statements.length; i += 200) await tx.batch(statements.slice(i, i + 200));
+    await tx.commit();
+  } catch (err) {
+    await tx.rollback().catch(() => {});
+    throw err;
+  } finally {
+    tx.close();
   }
   invalidateCatalogCache();
   return { inserted, updated, changes };
@@ -269,9 +313,9 @@ export async function upsertTechnologies(techs: Technology[], opts: UpsertOption
 /** Append an explicit change record (used by the pipeline for derived lifecycle signals). */
 export async function recordChange(change: Omit<TechnologyChange, "id" | "detectedAt">) {
   const db = await getDb();
-  const c: TechnologyChange = { ...change, id: `chg_${change.technologyId}_${change.field}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, detectedAt: new Date().toISOString() };
+  const c: TechnologyChange = { ...change, id: changeId(change.technologyId, change.field), detectedAt: new Date().toISOString() };
   await db.execute({
-    sql: `INSERT INTO technology_changes (id, technology_id, field, previous_value, new_value, detected_at, source, confidence, change_kind) VALUES (?,?,?,?,?,?,?,?,?)`,
+    sql: `INSERT INTO technology_changes (id, technology_id, field, previous_value, new_value, detected_at, source, confidence, change_kind) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
     args: [c.id, c.technologyId, c.field, c.previousValue, c.newValue, c.detectedAt, c.source, c.confidence, c.changeKind],
   });
 }

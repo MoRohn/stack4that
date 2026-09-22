@@ -46,6 +46,8 @@ Useful commands:
 | `npm run e2e -- http://stack4that:3333 screenshots` | Browser end-to-end suite in real Chrome with ~40 assertions: progressive assembly timing, frame rate, layout (no overlaps, below the header), detail panel, keyboard access, Escape, share/export, swap, refinement, short and vague requests ("todo app") being interpreted and built, Edit brief, refresh keeping the stack, error + retry, shared-link replay, reduced motion, tablet and mobile, catalog and pipeline pages, zero console errors. |
 | `npm run a11y -- http://stack4that:3333` | Accessibility audit with axe-core over the home screen (idle and built), the detail panel, /catalog, /pipeline and mobile. Fails on any serious or critical violation. |
 | `npm run audit` | Catalog data-quality audit: duplicate names and aliases, utility-library noise, missing descriptions or licences, sibling products sharing one vendor URL. Fails on blocking issues. |
+| `npx tsx scripts/merge-duplicates.ts [--dry-run]` | Fold a technology that duplicates another into it, keeping every alias and source record, and retire the duplicate. |
+| `npx tsx scripts/backfill-provenance.ts [--dry-run]` | Restore change records for discovered technologies that have none, after an interrupted run. |
 | `npx tsx scripts/prune-utilities.ts [--dry-run]` | Retire catalog entries that are dependencies rather than architectural choices (SDKs, middleware, language bindings). Moves them to the `sunset` status and records the reason; nothing is deleted. |
 | `npm run visual -- http://stack4that:3333 screenshots` | Screenshot walkthrough of the main flows. |
 | `npm run build && npm start` | Production build. |

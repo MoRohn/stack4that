@@ -84,6 +84,9 @@ const MULTI_PRODUCT_HOSTS = new Set(["aws.amazon.com", "cloud.google.com", "azur
 const VENDOR_STEMS = new Set(["azure", "google", "amazon", "microsoft", "apache", "oracle", "alibaba", "tencent", "cloud", "open", "web", "data", "cloudflare", "vercel", "redis", "elastic"]);
 
 export function nameVariants(name: string): string[] {
+  // Separators are not normalized to spaces here on purpose: that would let the vendor
+  // strip below turn "azure-openai" into "openai", merging a managed service into the
+  // product it hosts. Late-named registry packages are caught by the accept-time check.
   const base = name.toLowerCase().replace(/\(.*?\)/g, " ").trim();
   const noVendor = base.replace(/^(apache|amazon|aws|google cloud|google|microsoft azure|azure|microsoft|ibm|oracle|the)\s+/, "");
   const out = new Set<string>();
@@ -445,27 +448,7 @@ async function discoverNew(limit: number, stats: Record<string, number | string>
   const byName = new Set(existing.flatMap((t) => [t.name, t.slug, ...t.aliases]).flatMap(nameVariants));
   const { listCandidates } = await import("@/lib/db/repo");
   const seenBefore = new Set((await listCandidates(undefined, 5000)).filter((c) => c.status !== "pending").map((c) => c.id));
-  const fresh: RawCandidate[] = [];
-  const seenKeys = new Set<string>();
-  let dupes = 0;
-  for (const c of raw) {
-    const slug = slugify(c.name);
-    if (!slug || slug.length < 2) continue;
-    const dom = productKey(c.website);
-    const repo = c.repo ? canonicalUrl(c.repo)?.toLowerCase() : undefined;
-    const dupKey = repo ?? dom ?? slug;
-    // A vendor domain hosts many sibling products (vercel.com/blob, supabase.com/auth), so a URL match
-    // alone is not a duplicate: the name has to match as well. Repositories and slugs are decisive.
-    const urlDuplicate = Boolean(dom && byDomain.has(dom) && nameVariants(c.name).some((v) => byName.has(v)));
-    if (bySlug.has(slug) || nameVariants(c.name).some((v) => byName.has(v)) || urlDuplicate || (repo && byRepo.has(repo)) || seenKeys.has(dupKey)) {
-      dupes++;
-      continue;
-    }
-    seenKeys.add(dupKey);
-    const candId = `cand_${slug}`;
-    if (seenBefore.has(candId)) continue;
-    fresh.push(c);
-  }
+  const { fresh, dupes } = dedupeCandidates(raw, { bySlug, byDomain, byRepo, byName, seenBefore });
   stats.deduplicated = dupes;
   log(`normalize/dedupe: ${fresh.length} new candidates after removing ${dupes} duplicates`);
 
@@ -553,6 +536,15 @@ async function discoverNew(limit: number, stats: Record<string, number | string>
           .filter(([, p]) => p > 0.55)
           .map(([k]) => k);
         const displayName = productName(c.name, site?.title, c.sourceType);
+        // A registry slug only becomes a product name at this point ("drizzle-kit" → "Drizzle ORM"),
+        // so the catalog is checked once more under the name the technology will actually carry.
+        const finalVariants = nameVariants(displayName);
+        if (finalVariants.some((nv) => byName.has(nv))) {
+          stats.deduplicated = Number(stats.deduplicated) + 1;
+          resultRows.push({ id: candId, name: c.name, website: c.website, sourceType: c.sourceType, sourceUrl: c.sourceUrl, status: "rejected", reason: `duplicate: already in the catalog as "${displayName}"`, data: { ...c.payload, verdict: v }, createdAt: now(), updatedAt: now() });
+          continue;
+        }
+        for (const nv of finalVariants) byName.add(nv);
         const slug = slugify(c.name);
         const techId = `tech_${slug}`;
         const logo = resolveLogo([slug, c.name]);
@@ -632,6 +624,47 @@ async function discoverNew(limit: number, stats: Record<string, number | string>
   log(`validate: ${stats.validated} classified, ${stats.accepted} accepted, ${stats.rejected} rejected, ${stats.held} held`);
 }
 
+/**
+ * Keep only candidates that are neither already in the catalog nor duplicated within the
+ * batch. Dedupe keys: the repository, then the product URL, and always the slug, because
+ * the slug becomes the technology id and two sources often describe one product under
+ * different names, repositories or domains.
+ */
+export function dedupeCandidates(
+  raw: RawCandidate[],
+  known: { bySlug: Set<string>; byDomain: Set<string>; byRepo: Set<string>; byName: Set<string>; seenBefore: Set<string> },
+): { fresh: RawCandidate[]; dupes: number } {
+  const fresh: RawCandidate[] = [];
+  const seenKeys = new Set<string>();
+  const seenNames = new Set<string>();
+  let dupes = 0;
+  for (const c of raw) {
+    const slug = slugify(c.name);
+    if (!slug || slug.length < 2) continue;
+    const dom = productKey(c.website);
+    const repo = c.repo ? canonicalUrl(c.repo)?.toLowerCase() : undefined;
+    const dupKey = repo ?? dom ?? slug;
+    const slugKey = `slug:${slug}`;
+    // A vendor domain hosts many sibling products (vercel.com/blob, supabase.com/auth), so a URL match
+    // alone is not a duplicate: the name has to match as well. Repositories and slugs are decisive.
+    const urlDuplicate = Boolean(dom && known.byDomain.has(dom) && nameVariants(c.name).some((v) => known.byName.has(v)));
+    const variants = nameVariants(c.name);
+    // The same product often arrives from two sources under different names in one batch
+    // ("Apache CouchDB" from Apache, "couchdb" from Docker Hub), so names are matched
+    // against what this batch already kept, not only against the catalog.
+    if (known.bySlug.has(slug) || variants.some((v) => known.byName.has(v) || seenNames.has(v)) || urlDuplicate || (repo && known.byRepo.has(repo)) || seenKeys.has(dupKey) || seenKeys.has(slugKey)) {
+      dupes++;
+      continue;
+    }
+    seenKeys.add(dupKey);
+    seenKeys.add(slugKey);
+    for (const v of variants) seenNames.add(v);
+    if (known.seenBefore.has(`cand_${slug}`)) continue;
+    fresh.push(c);
+  }
+  return { fresh, dupes };
+}
+
 /** Prefer the product name from the website title over a repository/package slug. */
 export function productName(raw: string, siteTitle: string | undefined, sourceType: SourceType): string {
   if (!["github", "npm", "pypi", "crates", "dockerhub"].includes(sourceType)) return raw;
@@ -639,6 +672,8 @@ export function productName(raw: string, siteTitle: string | undefined, sourceTy
   const humanized = raw.replace(/[-_]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
   if (!siteTitle) return humanized;
   const head = siteTitle.split(/\s+[-|–—:·]\s+/)[0].trim();
+  // Code-host titles describe a file view ("owner/repo at master"), not a product.
+  if (/\//.test(head) || /\sat\s\S+$/.test(head) || /^GitHub\b/i.test(head)) return humanized;
   const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (head.length >= 2 && head.length <= 40 && (norm(head).includes(norm(raw)) || norm(raw).includes(norm(head)) || norm(head).startsWith(norm(raw).slice(0, 4)))) return head;
   return humanized;
