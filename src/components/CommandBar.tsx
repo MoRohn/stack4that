@@ -104,7 +104,7 @@ export function CommandBar({
           type="submit"
           disabled={busy || !value.trim()}
           aria-label={hasStack ? "Reshape the stack" : "Build"}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border px-3 py-2 text-xs font-medium transition disabled:opacity-30 ${hasStack && value.trim() ? "border-[#b77bff]/40 bg-gradient-to-r from-[#b77bff]/25 to-[#8ab4ff]/25 text-white hover:from-[#b77bff]/35 hover:to-[#8ab4ff]/35" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"}`}
+          className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border px-3 py-2 text-xs font-medium transition disabled:opacity-30 ${hasStack && value.trim() ? "border-white/25 bg-white/[0.14] text-white hover:border-white/40 hover:bg-white/[0.2]" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"}`}
         >
           {busy ? <span className="s4t-pulse">…</span> : hasStack ? "Reshape ↵" : "↵"}
         </button>

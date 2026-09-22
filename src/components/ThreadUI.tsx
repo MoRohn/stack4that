@@ -24,7 +24,7 @@ export function RequestPanel({
         <p className="min-w-0 flex-1 text-[14px] leading-snug text-white/90">“{request}”</p>
       </div>
       <div className="mt-2 flex items-start gap-2.5">
-        <span className="mt-0.5 shrink-0 rounded-md bg-gradient-to-r from-[#b77bff]/25 to-[#8ab4ff]/25 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.18em] text-white/70">
+        <span className="mt-0.5 shrink-0 rounded-md bg-white/[0.12] px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.18em] text-white/70">
           {interpretation?.vague ? "Interpreted" : "Built from"}
         </span>
         {interpretation ? (
@@ -133,7 +133,7 @@ export function ThreadRail({
           const canOpen = Boolean(t.architectureId && t.architectureId !== currentArchitectureId && !busy);
           return (
             <li key={`${i}-${t.request}`} className="relative">
-              <span className={`absolute -left-[17px] top-1.5 h-2 w-2 rounded-full ${current ? "bg-gradient-to-br from-[#ffb3f2] to-[#8ab4ff] shadow-[0_0_8px_rgba(183,123,255,0.8)]" : "bg-white/25"}`} />
+              <span className={`absolute -left-[17px] top-1.5 h-2 w-2 rounded-full ${current ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.55)]" : "bg-white/25"}`} />
               <button
                 type="button"
                 disabled={!canOpen}

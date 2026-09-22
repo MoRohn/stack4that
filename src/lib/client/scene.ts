@@ -74,7 +74,7 @@ const GROUP_COLORS: Record<ArchitectureGroup, string> = {
   EXPERIENCE: "#8ab4ff",
   API: "#9ef0c6",
   DATA: "#ffd27a",
-  AI: "#f39cff",
+  AI: "#c3e26e",
   INGESTION: "#ffab91",
   INFRASTRUCTURE: "#a8b3c7",
 };

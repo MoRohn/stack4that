@@ -194,7 +194,7 @@ export function PipelineControls() {
           type="button"
           onClick={launch}
           disabled={running || starting || (mode !== "refresh" && sources.length === 0)}
-          className="rounded-xl border border-[#b77bff]/40 bg-gradient-to-r from-[#b77bff]/30 to-[#8ab4ff]/30 px-4 py-2 text-[13px] font-semibold text-white transition hover:from-[#b77bff]/40 hover:to-[#8ab4ff]/40 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-xl border border-white/25 bg-white/[0.14] px-4 py-2 text-[13px] font-semibold text-white transition hover:border-white/40 hover:bg-white/[0.2] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {running ? "Running…" : starting ? "Starting…" : `Run ${MODES.find((m) => m.id === mode)?.label.toLowerCase()}`}
         </button>
@@ -221,7 +221,7 @@ export function PipelineControls() {
                 {STAGES.map((st, i) => (
                   <div key={st} className="flex-1">
                     <div className={`h-1 rounded-full ${i < stageIndex ? "bg-[#9ef0c6]/70" : i === stageIndex ? "bg-white/15" : "bg-white/[0.06]"}`}>
-                      {i === stageIndex && <div className="h-1 rounded-full bg-gradient-to-r from-[#b77bff] to-[#8ab4ff] transition-all duration-500" style={{ width: `${Math.max(4, pct)}%` }} />}
+                      {i === stageIndex && <div className="h-1 rounded-full bg-white/80 transition-all duration-500" style={{ width: `${Math.max(4, pct)}%` }} />}
                     </div>
                     <div className={`mt-1 text-[9.5px] uppercase tracking-[0.16em] ${i === stageIndex ? "text-white/70" : "text-white/70"}`}>{st}</div>
                   </div>
