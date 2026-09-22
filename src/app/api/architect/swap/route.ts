@@ -3,11 +3,16 @@ import { sseResponse } from "@/lib/architect/sse";
 import { getArchitecture } from "@/lib/db/repo";
 import { clientKey, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isTypeSafeConfigured, TypeSafeNotConfiguredError } from "@/lib/typesafe";
+import { withSessionKey } from "@/lib/typesafe/session-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export async function POST(request: Request) {
+  return withSessionKey(() => swap(request));
+}
+
+async function swap(request: Request) {
   if (!isTypeSafeConfigured()) return Response.json({ error: new TypeSafeNotConfiguredError().message }, { status: 503 });
   const limited = rateLimit(`architect:${clientKey(request)}`);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);

@@ -3,30 +3,47 @@
  * app goes through `askTypeSafe`, which records usage and normalizes errors.
  */
 import { TypeSafeClient, type Questions, type SystemOneResult, APIError } from "@typesafe-ai/sdk";
+import { activeTypeSafeKey } from "./key-context";
 
-let client: TypeSafeClient | null = null;
+/**
+ * One client per key, so a visitor's session key never shares a connection with
+ * the deployment key. Bounded because the map is keyed by a visitor-supplied value.
+ */
+const clients = new Map<string, TypeSafeClient>();
+const MAX_CLIENTS = 32;
+
+/** The session key for this request, else the deployment-wide default. */
+export function typeSafeApiKey(): string | undefined {
+  return activeTypeSafeKey() ?? process.env.TYPESAFE_API_KEY ?? undefined;
+}
 
 export function isTypeSafeConfigured(): boolean {
-  return Boolean(process.env.TYPESAFE_API_KEY);
+  return Boolean(typeSafeApiKey());
 }
 
 export function typeSafeModel(): string {
   return process.env.TYPESAFE_MODEL ?? process.env.TYPESAFE_DEFAULT_MODEL ?? "jev-latest";
 }
 
-/** Drop the cached client (the API key or model changed). */
+/** Drop the cached clients (an API key or the model changed). */
 export function resetTypeSafeClient() {
-  client = null;
+  clients.clear();
 }
 
 function getClient(): TypeSafeClient {
+  const apiKey = typeSafeApiKey();
+  const model = typeSafeModel();
+  const cacheKey = `${model}\u0000${apiKey ?? ""}`;
+  let client = clients.get(cacheKey);
   if (!client) {
+    if (clients.size >= MAX_CLIENTS) clients.clear();
     client = new TypeSafeClient({
-      apiKey: process.env.TYPESAFE_API_KEY,
-      defaultModel: typeSafeModel(),
+      apiKey,
+      defaultModel: model,
       timeout: Number(process.env.TYPESAFE_TIMEOUT_MS ?? 45000),
       logLevel: "warn",
     });
+    clients.set(cacheKey, client);
   }
   return client;
 }
@@ -34,7 +51,7 @@ function getClient(): TypeSafeClient {
 /** TYPESAFE_API_KEY is missing: Stack4That cannot make decisions without it. */
 export class TypeSafeNotConfiguredError extends Error {
   constructor() {
-    super("TypeSafe is not configured. Set TYPESAFE_API_KEY (https://console.typesafe.ai/settings/keys) and restart the server.");
+    super("TypeSafe is not configured. Add your API key from the settings menu, or set TYPESAFE_API_KEY on the server (https://console.typesafe.ai/settings/keys).");
     this.name = "TypeSafeNotConfiguredError";
   }
 }

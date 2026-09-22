@@ -74,9 +74,15 @@ The curated seed loads into a local SQLite file on first start, so the app is us
 
 All configuration is environment variables, documented in `.env.example`.
 
+The gear in the top right takes a TypeSafe key per visitor. It is verified with one
+live call before it is accepted, then kept in an httpOnly cookie and used for every
+TypeSafe call that visitor causes — architecture, swaps and pipeline runs alike — so
+its usage bills to them. Without one the app falls back to the server's
+`TYPESAFE_API_KEY` from `.env.local`.
+
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `TYPESAFE_API_KEY` | yes | The decision engine. Nothing is decided without it. |
+| `TYPESAFE_API_KEY` | yes | The decision engine. Nothing is decided without it. Visitors can override it with their own key from the settings gear. |
 | `TYPESAFE_MODEL` | no | Defaults to `jev-latest`. |
 | `DATABASE_URL` | no | libSQL target. Defaults to a local SQLite file; use `libsql://…` for Turso. |
 | `DATABASE_AUTH_TOKEN` | with Turso | Auth for a remote libSQL database. |

@@ -1,6 +1,9 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
+import { GearIcon } from "./GearIcon";
 import { LogoMark, Wordmark } from "./Logo";
+import { SettingsModal } from "./SettingsModal";
 
 type Section = "build" | "catalog" | "pipeline";
 
@@ -19,6 +22,7 @@ function relative(iso?: string): string | undefined {
  * It floats over the canvas on the home page, so it stays light and translucent.
  */
 export function AppHeader({ active, technologies, updatedAt, onHome, floating = false }: { active: Section; technologies?: number; updatedAt?: string; onHome?: () => void; floating?: boolean }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const fresh = relative(updatedAt);
   const nav: Array<[Section, string, string]> = [
     ["build", "Build", "/"],
@@ -83,7 +87,20 @@ export function AppHeader({ active, technologies, updatedAt, onHome, floating = 
             </Link>
           ))}
         </nav>
+
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(true)}
+          aria-label="Settings"
+          aria-haspopup="dialog"
+          title="TypeSafe API key"
+          className="group/gear flex h-[30px] w-[30px] items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/60 backdrop-blur-md transition hover:border-white/20 hover:text-white focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:outline-none"
+        >
+          <GearIcon size={15} className="transition-transform duration-500 group-hover/gear:rotate-45" />
+        </button>
       </div>
+
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </header>
   );
 }
