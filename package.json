@@ -15,6 +15,7 @@
     "pipeline:watch": "tsx scripts/pipeline.ts --watch",
     "smoke": "tsx scripts/smoke.ts",
     "visual": "tsx scripts/visual.ts",
+    "shots": "tsx scripts/readme-shots.ts",
     "eval": "tsx scripts/eval.ts",
     "e2e": "tsx scripts/e2e.ts",
     "predev": "node scripts/check-host.mjs",

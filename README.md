@@ -1,6 +1,6 @@
-# Stack4That
-
-**Describe what you are building. Watch the stack assemble.**
+<p align="center">
+  <img src="docs/images/masthead.png" alt="Stack4That — AI stack architect" width="880">
+</p>
 
 Stack4That turns a plain-language request such as *"Build the stack for a real-time AI news application"* into a coherent technology architecture, decided by [TypeSafe](https://typesafe.ai) against a continuously refreshed knowledge base of real technologies, and assembled on screen out of physics-driven logo blocks.
 
@@ -180,7 +180,8 @@ Validation is TypeSafe's: is this a stack technology, is it developer-facing, is
 
 ```
 bin/                    the stack4that CLI
-docs/images/            screenshots used by this README
+docs/assets/            masthead source, rendered by `npm run shots`
+docs/images/            masthead and screenshots used by this README
 scripts/                development, evaluation and QA entry points
   maintenance/          one-off catalog curation and repair
 src/app/                routes, API handlers, pages
@@ -208,6 +209,7 @@ tests/                  unit and integration tests
 | `npm run smoke` | A running server end to end: streaming, swap, persistence, pages. |
 | `npm run audit` | Catalog data quality: duplicates, utility noise, missing descriptions or licences, siblings sharing a vendor URL. |
 | `npm run visual` | Screenshot walkthrough of the main flows. |
+| `npm run shots` | Regenerate the masthead and screenshots this README uses. `-- --masthead` redraws only the banner. |
 | `npm run lint`, `npm run typecheck` | Static checks. |
 
 The browser suites need Google Chrome installed and a running server. They default to `http://stack4that:3333`; pass another address as the first argument, for example `npm run e2e -- http://localhost:3333`.

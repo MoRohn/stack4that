@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1200px; height: 300px; }
+      body {
+        background: #08080a;
+        font-family: Geist, ui-sans-serif, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        display: flex; align-items: center; justify-content: center;
+        position: relative; overflow: hidden;
+      }
+      /* The same light the product's canvas sits under. */
+      .glow {
+        position: absolute; inset: -55% 18% auto 18%; height: 560px;
+        background: radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.09), rgba(255,255,255,0) 62%);
+      }
+      .grid {
+        position: absolute; inset: 0;
+        background-image: linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
+                          linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: radial-gradient(ellipse at 50% 45%, #000 20%, transparent 72%);
+      }
+      .row { position: relative; display: flex; align-items: center; gap: 30px; }
+      .word { font-size: 64px; font-weight: 600; letter-spacing: -0.028em; color: #fff; line-height: 1; }
+      .word .four {
+        background: linear-gradient(135deg, #ffffff 0%, #c2c2cc 48%, #6f6f7a 100%);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+      }
+      .tag {
+        margin-top: 14px; font-size: 13px; font-weight: 500; text-transform: uppercase;
+        letter-spacing: 0.34em; color: rgba(255,255,255,0.42);
+      }
+      .rule { margin-top: 18px; height: 1px; width: 100%;
+        background: linear-gradient(90deg, rgba(255,255,255,0.22), rgba(255,255,255,0)); }
+      .line { font-size: 15.5px; color: rgba(255,255,255,0.58); margin-top: 16px; letter-spacing: -0.01em; }
+    </style>
+  </head>
+  <body>
+    <div class="glow"></div>
+    <div class="grid"></div>
+    <div class="row">
+      <svg width="118" height="118" viewBox="0 0 32 32" fill="none">
+        <defs>
+          <linearGradient id="base" x1="5" y1="22" x2="27" y2="30" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#6e6e79" /><stop offset="1" stop-color="#44444d" />
+          </linearGradient>
+          <linearGradient id="mid" x1="5" y1="14" x2="27" y2="22" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#a6a6b1" /><stop offset="1" stop-color="#66666f" />
+          </linearGradient>
+          <linearGradient id="top" x1="7" y1="4" x2="25" y2="10" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#ffffff" /><stop offset="1" stop-color="#c8c8d2" />
+          </linearGradient>
+        </defs>
+        <path d="M16 22.4L27 26L16 29.6L5 26Z" fill="url(#base)" />
+        <path d="M16 14.6L27 18.2L16 21.8L5 18.2Z" fill="url(#mid)" />
+        <path d="M16 4.048L25.02 7L16 9.952L6.98 7Z" fill="url(#top)" />
+      </svg>
+      <div>
+        <div class="word">Stack<span class="four">4</span>That</div>
+        <div class="tag">AI stack architect</div>
+        <div class="rule"></div>
+        <div class="line">Describe what you are building. Watch the stack assemble.</div>
+      </div>
+    </div>
+  </body>
+</html>
