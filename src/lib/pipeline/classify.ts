@@ -2,7 +2,7 @@
  * TypeSafe-backed validation and classification of discovery candidates.
  * Every accepted claim becomes Evidence with source "typesafe-classification".
  */
-import { choice, noul, type Questions } from "@typesafe-ai/sdk";
+import { choice, noul, score, type Questions } from "@typesafe-ai/sdk";
 import { CAPABILITIES, CATEGORIES } from "@/lib/taxonomy";
 import { askTypeSafe } from "@/lib/typesafe/client";
 import type { TechnologyType } from "@/lib/types";
@@ -32,6 +32,10 @@ export interface CandidateVerdict {
   developerFacing: number;
   /** Probability it is a low-level utility dependency rather than a component a team chooses. */
   utility: number;
+  /** Probability it is a module, plugin or sub-project of a larger project rather than a technology in its own right. */
+  subComponent: number;
+  /** How widely it is adopted in production stacks, 0 (barely used) to 1 (mainstream). */
+  notability: number;
   model?: string;
 }
 
@@ -78,12 +82,22 @@ export async function classifyCandidates(cands: CandidateInput[]): Promise<Candi
       true: "It is plumbing that arrives as a dependency of other libraries; nobody lists it as part of their architecture",
       false: "Teams deliberately choose it as a framework, database, service, platform, SDK, runtime or tool in their stack",
     });
+    questions[`sub_${i}`] = noul(`Is ${ref} a module, plugin, extension, binding, sub-project or companion tool belonging to a larger project, rather than a technology a team adopts on its own?`, {
+      true: "It exists inside another project's family (a language binding, a plugin, a test harness, an add-on component) and would be adopted only as part of that parent",
+      false: "It stands on its own: a team can adopt it directly without adopting a parent project",
+    });
+    questions[`use_${i}`] = score(`How widely is ${ref} used in production technology stacks today?`, [
+      "Barely used: a personal project, demo, course material or early experiment with no evidence of production use",
+      "Used by a small number of teams: a young or niche project with limited adoption",
+      "Established in its niche: a recognized choice that teams in this area would consider",
+      "Widely adopted: a mainstream option many engineering teams run in production",
+    ]);
     questions[`oss_${i}`] = noul(`Is ${ref} open source (its core is available under an open-source license)?`, { true: "Explicitly open source or has a public source repository under an OSS license", false: "Proprietary, or no indication of open source" });
     questions[`type_${i}`] = choice(`What kind of technology is ${ref}?`, TYPE_CRITERIA);
     questions[`cat_${i}`] = choice(`Which single category best describes ${ref}?`, categoryCriteria);
   });
   const res = await askTypeSafe(state, questions);
-  const a = res.answers as Record<string, { noul?: number; choice?: string; confidence?: number; probabilities?: Record<string, number> }>;
+  const a = res.answers as Record<string, { noul?: number; choice?: string; confidence?: number; score?: number; probabilities?: Record<string, number> }>;
   return cands.map((c, i) => ({
     id: c.id,
     isTechnology: a[`tech_${i}`]?.noul ?? 0,
@@ -92,6 +106,8 @@ export async function classifyCandidates(cands: CandidateInput[]): Promise<Candi
     developerFacing: a[`dev_${i}`]?.noul ?? 0,
     openSource: a[`oss_${i}`]?.noul ?? 0,
     utility: a[`util_${i}`]?.noul ?? 0,
+    subComponent: a[`sub_${i}`]?.noul ?? 0,
+    notability: (a[`use_${i}`]?.score ?? 0) / 3,
     type: (a[`type_${i}`]?.choice as TechnologyType) ?? "service",
     typeConfidence: a[`type_${i}`]?.confidence ?? 0,
     primaryCategory: a[`cat_${i}`]?.choice ?? "none",
@@ -129,4 +145,78 @@ export async function judgeLifecycle(name: string, websiteTitle?: string, websit
     },
   );
   return { shutdown: res.answers.shutdown.noul, renamed: res.answers.renamed.noul, acquired: res.answers.acquired.noul };
+}
+
+
+export interface CatalogReviewInput {
+  id: string;
+  name: string;
+  description: string;
+  categories: string[];
+  source: string;
+  stars?: number;
+  website?: string;
+  type?: string;
+  maturity?: string;
+}
+
+export interface CatalogReviewVerdict {
+  id: string;
+  /** Probability it belongs to a larger project rather than standing on its own. */
+  subComponent: number;
+  /** How widely it is used in production stacks, 0 (barely used) to 1 (mainstream). */
+  notability: number;
+  /** Probability a team would choose it when designing a stack. */
+  stackChoice: number;
+  model?: string;
+}
+
+/**
+ * Judge technologies already in the catalogue: is this something a team would choose when
+ * designing a stack, or a sub-project, a demo or a dependency that slipped through? Used by
+ * the curation pass, so retiring an entry is a TypeSafe judgment rather than a rule of thumb.
+ */
+export async function reviewCatalogEntries(entries: CatalogReviewInput[]): Promise<CatalogReviewVerdict[]> {
+  if (!entries.length) return [];
+  const state = {
+    // Thin entries often carry a one-clause description, so everything else known about
+    // them is included: the model should judge the technology, not the catalogue text.
+    entries: entries.map((e) => ({
+      name: e.name,
+      description: e.description.slice(0, 600) || "unknown",
+      categories: e.categories,
+      kind: e.type ?? "unknown",
+      maturity: e.maturity ?? "unknown",
+      website: e.website ?? "unknown",
+      discovered_from: e.source,
+      repository_stars: e.stars ?? "unknown",
+    })),
+  };
+  const questions: Questions = {};
+  entries.forEach((e, i) => {
+    const ref = `\`entries[${i}]\` (${e.name})`;
+    questions[`sub_${i}`] = noul(`Is ${ref} a module, plugin, extension, language binding, sub-project or companion tool of a larger project, rather than a technology adopted on its own?`, {
+      true: "It belongs to another project's family and would only be adopted as part of that parent",
+      false: "It stands on its own and can be adopted directly",
+    });
+    questions[`use_${i}`] = score(`How widely is ${ref} used in production technology stacks today?`, [
+      "Barely used: a personal project, demo, course material or early experiment with no evidence of production use",
+      "Used by a small number of teams: a young or niche project with limited adoption",
+      "Established in its niche: a recognized choice that teams in this area would consider",
+      "Widely adopted: a mainstream option many engineering teams run in production",
+    ]);
+    questions[`pick_${i}`] = noul(`Judging the technology itself rather than how much text \`entries[${i}]\` carries, when an engineering team designs a technology stack today, would they deliberately pick ${ref} as one of its components?`, {
+      true: "It is the kind of thing that appears on an architecture diagram or in a stack decision",
+      false: "It arrives as a dependency, a sub-component, an internal tool or an example, and nobody chooses it at the architecture level",
+    });
+  });
+  const res = await askTypeSafe(state, questions);
+  const a = res.answers as Record<string, { noul?: number; score?: number }>;
+  return entries.map((e, i) => ({
+    id: e.id,
+    subComponent: a[`sub_${i}`]?.noul ?? 0,
+    notability: (a[`use_${i}`]?.score ?? 0) / 3,
+    stackChoice: a[`pick_${i}`]?.noul ?? 1,
+    model: res.model,
+  }));
 }

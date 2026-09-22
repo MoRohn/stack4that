@@ -16,7 +16,7 @@ import { CATEGORY_IDS } from "@/lib/taxonomy";
 import { assertTypeSafeConfigured } from "@/lib/typesafe/client";
 import type { Evidence, SourceRecord, SourceType, Technology } from "@/lib/types";
 import { classifyCandidates, classifyCapabilities, judgeLifecycle, type CandidateInput } from "./classify";
-import { canonicalUrl, mapLimit } from "./http";
+import { canonicalUrl, domainOf, mapLimit } from "./http";
 import { fetchCncfLandscape, mapCncfCategory } from "./sources/cncf";
 import { DISCOVERY_QUERIES, fetchRepo, parseRepo, searchRepos } from "./sources/github";
 import { NPM_DISCOVERY_QUERIES, searchNpm } from "./sources/npm";
@@ -178,11 +178,23 @@ function addSource(tech: Technology, rec: Omit<SourceRecord, "id" | "technologyI
   if (tech.sourceRecords.length > 30) tech.sourceRecords = tech.sourceRecords.slice(-30);
 }
 
+/** A description worth storing: long enough to say something, and not just the name back. */
+function describesIt(text: string | undefined, name: string): text is string {
+  if (!text) return false;
+  const t = text.trim();
+  if (t.length < 40) return false;
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return norm(t) !== norm(name);
+}
+
 async function refreshExisting(limit: number, stats: Record<string, number | string>, log: (l: string) => void) {
   const all = await listTechnologies({ includeInactive: true });
+  // Records that never got a real description are re-checked first: an entry the catalogue
+  // cannot describe is worth more attention than one that is merely a few days stale.
+  const thin = (t: Technology) => ((t.description ?? "").trim().length < 60 ? 0 : 1);
   const due = all
     .filter((t) => t.status !== "sunset")
-    .sort((a, b) => (a.lastVerifiedAt ?? "").localeCompare(b.lastVerifiedAt ?? ""))
+    .sort((a, b) => thin(a) - thin(b) || (a.lastVerifiedAt ?? "").localeCompare(b.lastVerifiedAt ?? ""))
     .slice(0, limit);
   log(`refresh: ${due.length} technologies due (of ${all.length})`);
   const updated: Technology[] = [];
@@ -265,7 +277,38 @@ async function refreshOne(orig: Technology, updated: Technology[], stats: Record
             await recordChange({ technologyId: tech.id, field: "repositoryActivity", previousValue: orig.repositoryActivity ?? null, newValue: r.pushedAt, source: "pipeline:refresh", confidence: 0.95, changeKind: "repository-inactivity" });
           }
           if (monthsSincePush <= 18 && tech.tags.includes("inactive-repository")) tech.tags = tech.tags.filter((t) => t !== "inactive-repository");
-          if (!tech.description && r.description) tech.description = r.description;
+          // Registry and foundation catalogues often carry a stub ("A Java ORM"). The
+          // repository's own description is better and is a first-party source, so a thin
+          // record adopts it rather than staying thin.
+          if (describesIt(r.description, tech.name) && (tech.description ?? "").length < 60 && r.description.length > (tech.description ?? "").length) {
+            tech.description = r.description;
+            if ((tech.shortDescription ?? "").length < 60) tech.shortDescription = r.description.split(/(?<=\.)\s/)[0].slice(0, 160);
+            addEvidence(tech, evidence(tech, "official-repository", r.url, "description", r.description, 0.9));
+          }
+        }
+      }
+      // Wikidata and foundation catalogues sometimes give a class label ("database engine")
+      // and no repository. Find the project's own repository and take its description, so the
+      // text comes from the project rather than from us.
+      if (!tech.repositoryUrl && (tech.description ?? "").trim().length < 60) {
+        const wanted = new Set(nameVariants(tech.name));
+        const hits = await searchRepos(`${tech.name} in:name`, 5).catch(() => []);
+        const hit = hits.find((h) => {
+          const repoName = h.fullName.split("/")[1] ?? "";
+          const owner = h.fullName.split("/")[0] ?? "";
+          const sameSite = Boolean(h.homepage && tech.websiteUrl && domainOf(h.homepage) === domainOf(tech.websiteUrl));
+          const matches = sameSite || nameVariants(repoName).some((v) => wanted.has(v)) || nameVariants(`${owner} ${repoName}`).some((v) => wanted.has(v));
+          return matches && h.stars >= 200 && describesIt(h.description, tech.name);
+        });
+        if (hit) {
+          tech.repositoryUrl = hit.url;
+          tech.repositoryStars = hit.stars;
+          tech.description = hit.description!;
+          tech.shortDescription = hit.description!.split(/(?<=\.)\s/)[0].slice(0, 160);
+          if (!tech.license && hit.license) tech.license = hit.license;
+          addSource(tech, { sourceType: "github", sourceUrl: hit.url, retrievedAt: now(), payload: { stars: hit.stars, resolved: "thin-description" } });
+          addEvidence(tech, evidence(tech, "official-repository", hit.url, "description", hit.description!, 0.85));
+          await recordChange({ technologyId: tech.id, field: "description", previousValue: orig.description ?? null, newValue: tech.description, source: "pipeline:refresh", confidence: 0.85, changeKind: "capability" });
         }
       }
       if (!tech.logoAssetId) {
@@ -502,11 +545,17 @@ async function discoverNew(limit: number, stats: Record<string, number | string>
         if (v.isTechnology < 0.6) reasons.push(`not a stack technology (p=${v.isTechnology.toFixed(2)})`);
         if (v.developerFacing < 0.5) reasons.push(`not developer-facing (p=${v.developerFacing.toFixed(2)})`);
         if (v.utility > 0.65) reasons.push(`low-level utility dependency, not a stack component (p=${v.utility.toFixed(2)})`);
+        if (v.subComponent > 0.6) reasons.push(`part of a larger project, not adopted on its own (p=${v.subComponent.toFixed(2)})`);
+        if (v.notability < 0.4) reasons.push(`no evidence of production use (adoption ${v.notability.toFixed(2)})`);
+        // A catalogue entry has to say what the technology is. Too little text is not a verdict
+        // against the technology, so the candidate waits for a run that finds a description.
+        const blurb = (site?.description && site.description.length > (c.description?.length ?? 0) ? site.description : c.description) || repo?.description || "";
+        const thinText = blurb.trim().length < 40;
         if (!websiteOk) reasons.push(`website unreachable (${site?.status ?? "no website"})`);
         if (site && v.websiteMatches < 0.5) reasons.push(`website does not match (p=${v.websiteMatches.toFixed(2)})`);
         if (v.isActive < 0.5) reasons.push(`appears inactive (p=${v.isActive.toFixed(2)})`);
         if (v.primaryCategory === "none" || !CATEGORY_IDS.has(v.primaryCategory)) reasons.push("no technology category");
-        const hold = reasons.length === 0 && (v.isTechnology < 0.85 || v.developerFacing < 0.7 || v.categoryConfidence < 0.5);
+        const hold = reasons.length === 0 && (thinText || v.isTechnology < 0.85 || v.developerFacing < 0.7 || v.categoryConfidence < 0.5 || v.notability < 0.6 || v.subComponent > 0.4);
         if (reasons.length) {
           stats.rejected = Number(stats.rejected) + 1;
           resultRows.push({ id: candId, name: c.name, website: c.website, sourceType: c.sourceType, sourceUrl: c.sourceUrl, status: "rejected", reason: reasons.join("; "), data: { ...c.payload, verdict: v }, createdAt: now(), updatedAt: now() });
@@ -514,7 +563,7 @@ async function discoverNew(limit: number, stats: Record<string, number | string>
         }
         if (hold) {
           stats.held = Number(stats.held) + 1;
-          resultRows.push({ id: candId, name: c.name, website: c.website, sourceType: c.sourceType, sourceUrl: c.sourceUrl, status: "hold", reason: `low confidence (tech ${v.isTechnology.toFixed(2)}, category ${v.categoryConfidence.toFixed(2)})`, data: { ...c.payload, verdict: v }, createdAt: now(), updatedAt: now() });
+          resultRows.push({ id: candId, name: c.name, website: c.website, sourceType: c.sourceType, sourceUrl: c.sourceUrl, status: "hold", reason: thinText ? `no usable description yet (${blurb.trim().length} chars)` : `low confidence (tech ${v.isTechnology.toFixed(2)}, category ${v.categoryConfidence.toFixed(2)}, adoption ${v.notability.toFixed(2)})`, data: { ...c.payload, verdict: v }, createdAt: now(), updatedAt: now() });
           continue;
         }
         // ENRICH: capabilities (second TypeSafe request), logo, license, repo signals
@@ -675,7 +724,9 @@ export function productName(raw: string, siteTitle: string | undefined, sourceTy
   // Code-host titles describe a file view ("owner/repo at master"), not a product.
   if (/\//.test(head) || /\sat\s\S+$/.test(head) || /^GitHub\b/i.test(head)) return humanized;
   const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (head.length >= 2 && head.length <= 40 && (norm(head).includes(norm(raw)) || norm(raw).includes(norm(head)) || norm(head).startsWith(norm(raw).slice(0, 4)))) return head;
+  // A title that is just the package id ("agents-cli") is the registry echoing the slug back.
+  const slugLike = /^[a-z0-9]+([-_][a-z0-9]+)+$/.test(head);
+  if (!slugLike && head.length >= 2 && head.length <= 40 && (norm(head).includes(norm(raw)) || norm(raw).includes(norm(head)) || norm(head).startsWith(norm(raw).slice(0, 4)))) return head;
   return humanized;
 }
 

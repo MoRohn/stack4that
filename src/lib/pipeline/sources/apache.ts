@@ -39,5 +39,5 @@ export async function fetchApacheProjects(): Promise<ApacheProject[]> {
   const list = (v?: unknown) => (Array.isArray(v) ? v : typeof v === "string" ? v.split(",") : []).map((x) => String(x).trim()).filter(Boolean);
   return Object.values(d)
     .filter((p) => p.name && p.homepage && !list(p.category).includes("retired"))
-    .map((p) => ({ name: p.name!, homepage: p.homepage, description: (p.shortdesc || p.description || "").trim(), categories: list(p.category), languages: list(p["programming-language"]), repository: list(p.repository).find((r) => r.includes("github.com")) }));
+    .map((p) => ({ name: p.name!, homepage: p.homepage, description: [p.shortdesc, p.description].filter((x): x is string => typeof x === "string").sort((a, b) => b.length - a.length)[0]?.trim() ?? "", categories: list(p.category), languages: list(p["programming-language"]), repository: list(p.repository).find((r) => r.includes("github.com")) }));
 }
