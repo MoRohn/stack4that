@@ -1,5 +1,4 @@
 import { runPipeline, type PipelineMode } from "@/lib/pipeline";
-import { withSessionKey } from "@/lib/typesafe/session-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -14,7 +13,7 @@ function authorized(request: Request): boolean {
 
 async function handle(request: Request) {
   if (!authorized(request)) return Response.json({ error: "unauthorized" }, { status: 401 });
-  return withSessionKey(() => run(request));
+  return run(request);
 }
 
 async function run(request: Request) {

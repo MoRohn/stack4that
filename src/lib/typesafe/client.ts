@@ -3,18 +3,14 @@
  * app goes through `askTypeSafe`, which records usage and normalizes errors.
  */
 import { TypeSafeClient, type Questions, type SystemOneResult, APIError } from "@typesafe-ai/sdk";
-import { activeTypeSafeKey } from "./key-context";
 
-/**
- * One client per key, so a visitor's session key never shares a connection with
- * the deployment key. Bounded because the map is keyed by a visitor-supplied value.
- */
+/** One client per model and server key. */
 const clients = new Map<string, TypeSafeClient>();
-const MAX_CLIENTS = 32;
+const MAX_CLIENTS = 8;
 
-/** The session key for this request, else the deployment-wide default. */
+/** The deployment key from TYPESAFE_API_KEY. Never a value supplied by the browser. */
 export function typeSafeApiKey(): string | undefined {
-  return activeTypeSafeKey() ?? process.env.TYPESAFE_API_KEY ?? undefined;
+  return process.env.TYPESAFE_API_KEY || undefined;
 }
 
 export function isTypeSafeConfigured(): boolean {
@@ -51,7 +47,7 @@ function getClient(): TypeSafeClient {
 /** TYPESAFE_API_KEY is missing: Stack4That cannot make decisions without it. */
 export class TypeSafeNotConfiguredError extends Error {
   constructor() {
-    super("TypeSafe is not configured. Add your API key from the settings menu, or set TYPESAFE_API_KEY on the server (https://console.typesafe.ai/settings/keys).");
+    super("TypeSafe is not configured. Set TYPESAFE_API_KEY on the server (https://console.typesafe.ai/settings/keys).");
     this.name = "TypeSafeNotConfiguredError";
   }
 }

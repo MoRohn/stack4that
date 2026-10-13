@@ -3,7 +3,6 @@ import { sseResponse } from "@/lib/architect/sse";
 import { clientKey, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isTypeSafeConfigured, TypeSafeNotConfiguredError } from "@/lib/typesafe";
 import type { ThreadTurn } from "@/lib/types";
-import { withSessionKey } from "@/lib/typesafe/session-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -31,10 +30,6 @@ function sanitizeThread(raw: Body["thread"]): { id?: string; turns: ThreadTurn[]
   return { id: typeof raw.id === "string" ? raw.id : undefined, turns };
 }
 
-async function handle(request: Request, body: Body) {
-  return withSessionKey(() => architect(request, body));
-}
-
 async function architect(request: Request, body: Body) {
   if (!isTypeSafeConfigured()) return Response.json({ error: new TypeSafeNotConfiguredError().message }, { status: 503 });
   const limited = rateLimit(`architect:${clientKey(request)}`);
@@ -55,10 +50,10 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "invalid JSON" }, { status: 400 });
   }
-  return handle(request, body);
+  return architect(request, body);
 }
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  return handle(request, { request: url.searchParams.get("q") ?? "" });
+  return architect(request, { request: url.searchParams.get("q") ?? "" });
 }
