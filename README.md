@@ -4,6 +4,8 @@
 
 Stack4That turns a plain-language request such as *"Build the stack for a real-time AI news application"* into a coherent technology architecture, decided by [TypeSafe](https://typesafe.ai) against a continuously refreshed knowledge base of real technologies, and assembled on screen out of physics-driven logo blocks.
 
+A static overview of the project is published at <https://morohn.github.io/stack4that/>.
+
 Every selection is explained: why the slot exists, why this technology won, what it was chosen over, the calibrated confidence and the sources behind each claim. Candidate identifiers always come from the catalog, so a technology that does not exist cannot be recommended.
 
 ![The technology universe](docs/images/universe.jpg)
@@ -182,6 +184,7 @@ Validation is TypeSafe's: is this a stack technology, is it developer-facing, is
 bin/                    the stack4that CLI
 docs/assets/            masthead source, rendered by `npm run shots`
 docs/images/            masthead and screenshots used by this README
+site/                   static marketing site, deployed to GitHub Pages
 scripts/                development, evaluation and QA entry points
   maintenance/          one-off catalog curation and repair
 src/app/                routes, API handlers, pages
@@ -234,6 +237,8 @@ These are deliberate, occasional operations. All support `--dry-run`, and none o
 **Vercel.** Set `TYPESAFE_API_KEY`, `CRON_SECRET` and a libSQL database (`DATABASE_URL=libsql://…` with `DATABASE_AUTH_TOKEN`), since the filesystem is read-only. The cron in `vercel.json` runs the pipeline nightly.
 
 **Any Node host.** The default SQLite file works, with `PIPELINE_INPROCESS_SCHEDULE=1` to keep the catalog fresh.
+
+**GitHub Pages.** The standalone marketing site in [`site/`](site/) is published at <https://morohn.github.io/stack4that/>. [`.github/workflows/pages.yml`](.github/workflows/pages.yml) uploads that folder with `actions/upload-pages-artifact` and deploys it with `actions/deploy-pages` on every push to `main` that changes `site/`, and when the workflow is run by hand (`workflow_dispatch`). In the repository settings, set Pages → Build and deployment → Source to **GitHub Actions**. The page is static HTML, CSS, and JS. It is not part of the Next.js build or the Vercel deploy.
 
 ---
 

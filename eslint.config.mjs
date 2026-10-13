@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone GitHub Pages site. It is not part of the Next.js app.
+    "site/**",
   ]),
 ]);
 
