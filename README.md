@@ -1,14 +1,36 @@
 <p align="center">
-  <img src="docs/images/masthead.png" alt="Stack4That — AI stack architect" width="880">
+  <img src="src/app/icon.svg" alt="Stack4That logo" width="88" height="88">
 </p>
 
-Stack4That turns a plain-language request such as *"Build the stack for a real-time AI news application"* into a coherent technology architecture, decided by [TypeSafe](https://typesafe.ai) against a continuously refreshed knowledge base of real technologies, and assembled on screen out of physics-driven logo blocks.
+<h1 align="center">Stack4That</h1>
 
-The live app is at <https://stack4that.com>. A static overview of the project is published at <https://morohn.github.io/stack4that/>.
+<p align="center"><strong>Describe what you are building. Watch the stack assemble.</strong></p>
 
-Every selection is explained: why the slot exists, why this technology won, what it was chosen over, the calibrated confidence and the sources behind each claim. Candidate identifiers always come from the catalog, so a technology that does not exist cannot be recommended.
+<p align="center">An AI stack architect that turns a plain-language request into a coherent technology architecture, decided by <a href="https://typesafe.ai">TypeSafe</a> and assembled from physics-driven logo blocks.</p>
 
-![The technology universe](docs/images/universe.jpg)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/MoRohn/stack4that" alt="License: MIT"></a>
+  &nbsp;
+  <a href="https://github.com/MoRohn/stack4that/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/MoRohn/stack4that/ci.yml?branch=main&amp;label=CI" alt="CI: passing"></a>
+  &nbsp;
+  <a href="package.json"><img src="https://img.shields.io/badge/Next.js_%2B_TypeScript-111111" alt="Next.js and TypeScript"></a>
+  &nbsp;
+  <a href="https://stack4that.com"><img src="https://img.shields.io/badge/live%20app-stack4that.com-111111" alt="Live app: stack4that.com"></a>
+</p>
+
+<p align="center">
+  <a href="https://stack4that.com"><strong>Live app</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://morohn.github.io/stack4that/"><strong>Landing page</strong></a>
+  &nbsp;·&nbsp;
+  <a href="#contents"><strong>Docs</strong></a>
+  &nbsp;·&nbsp;
+  <a href="#quick-start"><strong>Quick start</strong></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/universe.jpg" alt="The technology universe: a dark canvas of physics-driven logo blocks, with the request “Build the stack for a real-time AI news application.”" width="880">
+</p>
 
 ---
 
@@ -182,9 +204,9 @@ Validation is TypeSafe's: is this a stack technology, is it developer-facing, is
 
 ```
 bin/                    the stack4that CLI
-docs/assets/            masthead source, rendered by `npm run shots`
-docs/images/            masthead and screenshots used by this README
-site/                   static marketing site, deployed to GitHub Pages
+docs/                   marketing site published to GitHub Pages, plus screenshots
+  assets/               masthead source, rendered by `npm run shots`
+  images/               masthead and screenshots used by this README
 scripts/                development, evaluation and QA entry points
   maintenance/          one-off catalog curation and repair
 src/app/                routes, API handlers, pages
@@ -238,7 +260,7 @@ These are deliberate, occasional operations. All support `--dry-run`, and none o
 
 **Any Node host.** The default SQLite file works, with `PIPELINE_INPROCESS_SCHEDULE=1` to keep the catalog fresh.
 
-**GitHub Pages.** The standalone marketing site in [`site/`](site/) is published at <https://morohn.github.io/stack4that/>. [`.github/workflows/pages.yml`](.github/workflows/pages.yml) uploads that folder with `actions/upload-pages-artifact` and deploys it with `actions/deploy-pages` on every push to `main` that changes `site/`, and when the workflow is run by hand (`workflow_dispatch`). In the repository settings, set Pages → Build and deployment → Source to **GitHub Actions**. The page is static HTML, CSS, and JS. It is not part of the Next.js build or the Vercel deploy.
+**GitHub Pages.** The marketing site is the static page in [`docs/`](docs/) (`index.html` and the files beside it), published at <https://morohn.github.io/stack4that/>. The repository Pages source is **Deploy from a branch**, branch `main`, folder `/docs`. [`docs/.nojekyll`](docs/.nojekyll) keeps Jekyll from rewriting that page. [`.github/workflows/pages.yml`](.github/workflows/pages.yml) uploads the same `docs/` folder with `actions/deploy-pages` on pushes to `main` that change `docs/`, and when the workflow is run by hand. The page is not part of the Next.js build or the Vercel deploy.
 
 ---
 

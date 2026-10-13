@@ -5,9 +5,26 @@ import "./globals.css";
 const sans = Geist({ subsets: ["latin"], variable: "--font-geist-sans", display: "swap" });
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
+const title = "Stack4That · AI stack architect";
+const description = "Describe what you are building. Watch the stack assemble.";
+
 export const metadata: Metadata = {
-  title: "Stack4That · AI stack architect",
-  description: "Describe what you are building. Watch the stack assemble.",
+  metadataBase: new URL("https://stack4that.com"),
+  title,
+  description,
+  openGraph: {
+    title,
+    description,
+    url: "https://stack4that.com",
+    siteName: "Stack4That",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
 };
 
 export const viewport: Viewport = { themeColor: "#08080a", width: "device-width", initialScale: 1 };

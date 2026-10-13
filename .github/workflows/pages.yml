@@ -1,11 +1,13 @@
 # Static marketing site only. This does not install, build, or deploy the Next.js app.
+# Pages for this repo is "Deploy from a branch" (main, /docs), so the page lives in docs/.
+# This workflow uploads that same directory, which is what an Actions source would publish.
 name: Deploy marketing site
 
 on:
   push:
     branches: [main]
     paths:
-      - "site/**"
+      - "docs/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -34,7 +36,7 @@ jobs:
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: site
+          path: docs
           include-hidden-files: true
 
       - name: Deploy to GitHub Pages
