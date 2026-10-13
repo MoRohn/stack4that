@@ -4,7 +4,7 @@
 
 Stack4That turns a plain-language request such as *"Build the stack for a real-time AI news application"* into a coherent technology architecture, decided by [TypeSafe](https://typesafe.ai) against a continuously refreshed knowledge base of real technologies, and assembled on screen out of physics-driven logo blocks.
 
-A static overview of the project is published at <https://morohn.github.io/stack4that/>.
+The live app is at <https://stack4that.com>. A static overview of the project is published at <https://morohn.github.io/stack4that/>.
 
 Every selection is explained: why the slot exists, why this technology won, what it was chosen over, the calibrated confidence and the sources behind each claim. Candidate identifiers always come from the catalog, so a technology that does not exist cannot be recommended.
 
@@ -234,7 +234,7 @@ These are deliberate, occasional operations. All support `--dry-run`, and none o
 
 ## Deployment
 
-**Vercel.** Set `TYPESAFE_API_KEY`, `CRON_SECRET` and a libSQL database (`DATABASE_URL=libsql://…` with `DATABASE_AUTH_TOKEN`), since the filesystem is read-only. The cron in `vercel.json` runs the pipeline nightly.
+**Vercel.** The live app is at <https://stack4that.com>. Set `TYPESAFE_API_KEY`, `CRON_SECRET` and a libSQL database (`DATABASE_URL=libsql://…` with `DATABASE_AUTH_TOKEN`), since the filesystem is read-only. The cron in `vercel.json` runs the pipeline nightly.
 
 **Any Node host.** The default SQLite file works, with `PIPELINE_INPROCESS_SCHEDULE=1` to keep the catalog fresh.
 

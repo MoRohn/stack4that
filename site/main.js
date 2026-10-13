@@ -2,7 +2,7 @@
   var liveUrl = window.LIVE_APP_URL;
   var configured = false;
 
-  if (typeof liveUrl === "string" && liveUrl !== "TODO" && liveUrl.trim() !== "") {
+  if (typeof liveUrl === "string" && liveUrl.trim() !== "") {
     try {
       var parsed = new URL(liveUrl);
       configured = parsed.protocol === "https:" || parsed.protocol === "http:";
@@ -11,15 +11,10 @@
     }
   }
 
-  var links = document.querySelectorAll("[data-live-app]");
-  var note = document.getElementById("live-app-url");
-
   if (configured) {
-    links.forEach(function (link) {
+    document.querySelectorAll("[data-live-app]").forEach(function (link) {
       link.href = liveUrl;
-      link.removeAttribute("aria-describedby");
     });
-    if (note) note.hidden = true;
   }
 
   var header = document.querySelector(".site-header");
