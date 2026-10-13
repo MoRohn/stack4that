@@ -98,15 +98,11 @@ The curated seed loads into a local SQLite file on first start, so the app is us
 
 All configuration is environment variables, documented in `.env.example`.
 
-The gear in the top right takes a TypeSafe key per visitor. It is verified with one
-live call before it is accepted, then kept in an httpOnly cookie and used for every
-TypeSafe call that visitor causes — architecture, swaps and pipeline runs alike — so
-its usage bills to them. Without one the app falls back to the server's
-`TYPESAFE_API_KEY` from `.env.local`.
+The hosted site at [stack4that.com](https://stack4that.com) runs on a managed TypeSafe AI key. The settings gear only notes that; the browser never asks for, stores, or sends a key. Self-hosters set `TYPESAFE_API_KEY` in the environment (`.env.local` locally, or the host's env on Vercel and elsewhere). Every TypeSafe call uses that server key.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `TYPESAFE_API_KEY` | yes | The decision engine. Nothing is decided without it. Visitors can override it with their own key from the settings gear. |
+| `TYPESAFE_API_KEY` | yes | The decision engine. Nothing is decided without it. On the hosted site this is a managed server key. Self-hosters set it in the environment. |
 | `TYPESAFE_MODEL` | no | Defaults to `jev-latest`. |
 | `DATABASE_URL` | no | libSQL target. Defaults to a local SQLite file; use `libsql://…` for Turso. |
 | `DATABASE_AUTH_TOKEN` | with Turso | Auth for a remote libSQL database. |

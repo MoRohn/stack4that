@@ -2,7 +2,6 @@ import { getActiveRun, getRun, PipelineBusyError, startRun } from "@/lib/pipelin
 import { clientKey, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isTypeSafeConfigured, TypeSafeNotConfiguredError } from "@/lib/typesafe";
 import type { PipelineMode, PipelineOptions } from "@/lib/pipeline";
-import { withSessionKey } from "@/lib/typesafe/session-key";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +15,6 @@ function authorized(request: Request): boolean {
 }
 
 export async function POST(request: Request) {
-  return withSessionKey(() => launch(request));
-}
-
-async function launch(request: Request) {
   if (!isTypeSafeConfigured()) return Response.json({ error: new TypeSafeNotConfiguredError().message }, { status: 503 });
   if (!authorized(request)) return Response.json({ error: "A pipeline admin token is required to launch runs.", tokenRequired: true }, { status: 401 });
   const limited = rateLimit(`pipeline:${clientKey(request)}`, 6, 60 * 60_000);
